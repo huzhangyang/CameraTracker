@@ -31,4 +31,11 @@ class CameraTracker:
             return None, None
         
     def output(self, index = 0):
-        return self.trackResult
+        with open('out.txt', 'w') as file:
+            for result in self.trackResult:
+                if result[0] == True:
+                    px = int(result[1][0][0] + result[1][0][2] / 2)
+                    py = int(result[1][0][1] + result[1][0][3] / 2)
+                    file.writelines([str(px), ' ', str(py), ' '])
+                else:
+                    file.writelines(['-1 -1 '])
