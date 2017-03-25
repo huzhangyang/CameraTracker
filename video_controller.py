@@ -36,13 +36,14 @@ class VideoController:
         self.isPlaying = True
         while(self.isPlaying):
             ret, self.currentFrame = self.__cap.read()
-            if ret == False:
-                break
+            if ret == True:
+                cv2.setTrackbarPos('Frame', self.windowName, self.getPosition())
+                cv2.imshow(self.windowName, self.currentFrame)
+                cv2.waitKey(int(1000 / self.fps))
             
-            cv2.setTrackbarPos('Frame', self.windowName, self.getPosition())
-            cv2.imshow(self.windowName, self.currentFrame)
-            if cv2.waitKey(int(1000 / self.fps)) & 0xFF == ord('q'):
-                break
+    def advance(self):
+        ret, self.currentFrame = self.__cap.read()
+        return ret
             
     def pause(self):
         self.isPlaying = False
