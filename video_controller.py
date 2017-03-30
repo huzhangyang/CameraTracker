@@ -12,7 +12,7 @@ class VideoController:
         self.currentFrame = None
         
         if self.__cap.isOpened():
-            self.totalFrame = int(self.__cap.get(cv2.CAP_PROP_FRAME_COUNT))
+            self.totalFrame = int(self.__cap.get(cv2.CAP_PROP_FRAME_COUNT) - 1)
             self.fps = self.__cap.get(cv2.CAP_PROP_FPS)
             self.setPosition(0)
         else:
@@ -26,7 +26,7 @@ class VideoController:
     
     def setPosition(self, pos):
         self.__cap.set(cv2.CAP_PROP_POS_FRAMES, pos);
-        ret, self.currentFrame = self.__cap.read()
+        ret, self.currentFrame = self.__cap.retrieve()
         return ret
             
     def advance(self):

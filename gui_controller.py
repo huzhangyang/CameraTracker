@@ -9,10 +9,10 @@ import time
 
 class MyWindow(QWidget):
     def __init__(self, controller, windowName):
-        QWidget.__init__(self)
+        super().__init__()
         self.controller = controller
         self.resize(960, 720)
-        self.move(300, 200)
+        self.move(300, 100)
         self.setWindowTitle(windowName)
         
         self.playButton = QPushButton('Play')
@@ -27,37 +27,33 @@ class MyWindow(QWidget):
         
         frames = QHBoxLayout()
         frames.addWidget(self.frameText)
-        frames.addStretch(1)
         frames.addWidget(self.frameBar)
-        frames.addStretch(7)
         
         vbox = QVBoxLayout()
-        vbox.addWidget(self.frameBar)
+        vbox.addLayout(frames)
         vbox.addStretch(1)
         vbox.addLayout(buttons)    
         vbox.addStretch(1)
         vbox.addWidget(self.image)    
         vbox.addStretch(6)
         
-        self.setLayout(vbox)        
+        self.setLayout(vbox)      
+        self.show()
         
         self.playButton.clicked.connect(self.onPlayButton)
         self.frameBar.valueChanged.connect(self.onFrameBar)
-        
-        self.show()
 
     def onPlayButton(self):
         if not self.controller.isPlaying:
             self.play()
         else:
-
             self.pause()        
     
     def onFrameBar(self, value):
-        print('onFrameBar ' + self.frameBar.sliderPressed())
-        self.frameText.setText(self, 'Frame:' + value)
-        if self.frameBar.sliderPressed():
-            self.controller.video.setPosition(value)      
+        self.frameText.setText('Frame:' + str(value))
+        if not self.controller.isPlaying:
+            self.controller.video.setPosition(value)
+            self.controller.showCurrentFrame()
             
     def play(self):
         self.playButton.setText('Pause')
@@ -66,7 +62,7 @@ class MyWindow(QWidget):
             ret = self.controller.video.advance()
             if ret:
                 self.frameBar.setValue(self.controller.video.getPosition())
-                self.controller.showImage(self.controller.video.currentFrame)
+                self.controller.showCurrentFrame()
                 self.controller.app.processEvents()
                 time.sleep(1.0 / self.controller.video.fps)
             else:
@@ -90,16 +86,16 @@ class GUIController:
     
     def initUI(self, video):
         self.video = video
-        self.window.frameBar.setMaximum(video.totalFrame)
-        self.showImage(video.currentFrame)
+        self.window.frameBar.setRange(0, video.totalFrame)
+        self.showCurrentFrame()
         
-    def showImage(self, frame):
-        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    def showCurrentFrame(self):
+        frame = cv2.cvtColor(self.video.currentFrame, cv2.COLOR_BGR2RGB)
         image = QImage(frame.data, frame.shape[1], frame.shape[0], QImage.Format_RGB888)
         self.window.image.setPixmap(QPixmap.fromImage(image))
 
     def cleanup(self):
-        sys.exit(self.app.exec_())
+        self.app.exec_()
         
         
 
