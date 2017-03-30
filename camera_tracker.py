@@ -5,31 +5,27 @@ import cv2
 import numpy
 
 class CameraTracker:
-    def __init__(self, windowName):
-        self.__tracker = cv2.MultiTracker("MIL")
-        self.windowName = windowName
+    def __init__(self, algorithm):
+        self.algorithm = algorithm
+        self.__tracker = cv2.MultiTracker(algorithm)
         self.trackResult = []
-        self.roi = None
     
-    def selectROI(self, frame):
-        self.roi = cv2.selectROI(self.windowName, frame, False, False)
-        self.__tracker.add(frame, self.roi)
+    def addROI(self, frame, roi):
+        self.__tracker.add(frame, roi)
+        
+    def reset(self):
+        self.__tracker = cv2.MultiTracker(self.algorithm)
         
     def track(self, frame):
-        if self.roi == None:
-            print('Error: Region of Interest not selected.')
-            return None, None
-        
+        print('x')
         result = self.__tracker.update(frame)
-        self.trackResult.append(result)
-        if result[0] == True:
-            p1 = (int(result[1][0][0]), int(result[1][0][1]))
-            p2 = (int(result[1][0][0] + result[1][0][2]), int(result[1][0][1] + result[1][0][3]))
-            return p1, p2
-        else:
+        print('y')
+        if result[0] == False:
             print('Warning: Tracking Failed.')
-            return None, None
-        
+            return None
+        else:
+            return result[1]
+
     def output(self, index = 0):
         with open('out.txt', 'w') as file:
             for result in self.trackResult:

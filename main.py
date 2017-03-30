@@ -8,9 +8,7 @@ from video_controller import VideoController
 from camera_tracker import CameraTracker
 
 #Main Entrance
-WINDOW_NAME = 'Camera Tracking'
-
-gui = GUIController(WINDOW_NAME)
+gui = GUIController('Camera Tracking')
 
 filename = gui.readFile()
 if filename == '' or filename == None:
@@ -19,9 +17,9 @@ if filename == '' or filename == None:
 video = VideoController(filename)
 if not video.isOpened():
     exit()
-    
-tracker = CameraTracker(WINDOW_NAME)
-gui.initUI(video)
+
+tracker = CameraTracker('MIL')
+gui.initUI(video, tracker)
 
 gui.cleanup()
 '''
