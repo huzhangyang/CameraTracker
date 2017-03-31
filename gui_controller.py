@@ -32,8 +32,6 @@ class MyWindow(QWidget):
     def __init__(self, controller, windowName):
         super().__init__()
         self.controller = controller
-        self.resize(960, 720)
-        self.move(300, 100)
         self.setWindowTitle(windowName)
         
         self.playButton = QPushButton('Play')
@@ -43,7 +41,7 @@ class MyWindow(QWidget):
         self.solveButton = QPushButton('Solve')
 
         self.focalLengthText = QLabel('Focal Length')
-        self.focalLengthEdit = QLineEdit('0')
+        self.focalLengthEdit = QLineEdit('900')
         self.centerXText = QLabel('Optical Center X')
         self.centerXEdit = QLineEdit('960')
         self.centerYText = QLabel('Optical Center Y')
@@ -132,7 +130,8 @@ class MyWindow(QWidget):
         fl = float(self.focalLengthEdit.text())
         cx = float(self.centerXEdit.text())
         cy = float(self.centerYEdit.text())
-        self.controller.tracker.solve(fl, cx, cy)
+        filename = self.controller.readFile('Select a track file:')
+        self.controller.tracker.solve(fl, cx, cy, filename)
         
     def onClearButton(self):
         self.controller.tracker.reset()
@@ -172,8 +171,8 @@ class GUIController:
         self.isPlaying = False
         self.rois = []
    
-    def readFile(self):
-        fileName, filetype = QFileDialog.getOpenFileName(self.window, "Select a video file", "C:/", "All Files (*)")
+    def readFile(self, title):
+        fileName, filetype = QFileDialog.getOpenFileName(self.window, title, "C:/", "All Files (*)")
         return fileName
     
     def initUI(self, video, tracker):

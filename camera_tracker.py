@@ -39,10 +39,29 @@ class CameraTracker:
                     file.writelines([str(px), ',', str(py), ' '])
                 file.write('\n')
                 
-    def solve(self, focalLength, centerX, centerY):
-        if len(self.trackResult) < 50:
-            print('Error: Not Enough Tracking Data.')
-            return
+    def solve(self, focalLength, centerX, centerY, filename):
+        with open(filename) as file:
+            content = file.readlines()
+            if len(content) < 50:
+                print('Error: Not Enough Tracking Data.')
+                return
+            
+            numOfTracks = len(content[0].split(' ')) - 1 # strip \n
+            points2D = numpy.zeros([numOfTracks, len(content), 2])
+            for i in range(len(content)):
+                tracks = content[i].split(' ')
+                for j in range(numOfTracks):
+                    split = tracks[j].split(',')
+                    if len(split) != 2:
+                        continue 
+
+                    points2D[j, i, 0] = int(split[0])
+                    points2D[j, i, 1] = int(split[1])
+                
+        K = numpy.mat([[focalLength, 0, centerX], [0, focalLength, centerY], [0, 0, 1]])
+
+        Rs, Ts, points3D = self.reconstruct(K, points2D)
         
-        # TODO
-        print('Solve! ', focalLength, ',', centerX, ',', centerY)
+    def reconstruct(self, K, points2D):
+        #TODO
+        return None, None, None
