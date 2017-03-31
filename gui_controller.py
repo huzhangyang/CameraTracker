@@ -90,17 +90,21 @@ class MyWindow(QWidget):
             return
         
         self.trackButton.setText('Pause')
-        self.controller.isPlaying = True
-        while self.controller.isPlaying:
-            ret = self.controller.video.advance()
-            if ret:
-                self.frameBar.setValue(self.controller.video.getPosition())
-                self.controller.showCurrentFrame()
-                self.controller.app.processEvents()
-                self.controller.updateTracker()
-            else:
-                break     
-        self.trackButton.setText('Track')
+        if not self.controller.isPlaying: 
+            self.controller.isPlaying = True
+            while self.controller.isPlaying:
+                ret = self.controller.video.advance()
+                if ret:
+                    self.frameBar.setValue(self.controller.video.getPosition())
+                    self.controller.showCurrentFrame()
+                    self.controller.app.processEvents()
+                    self.controller.updateTracker()
+                else:
+                    break     
+            self.trackButton.setText('Track')
+            self.controller.tracker.output()
+        else:
+            self.controller.isPlaying = False
         
     def onClearButton(self):
         self.controller.tracker.reset()
@@ -156,7 +160,7 @@ class GUIController:
         self.window.image.setPixmap(QPixmap.fromImage(image))
         
     def addROI(self, geometry):
-        roi = geometry.getCoords()
+        roi = geometry.getRect()
         self.tracker.addROI(self.video.currentFrame, roi)
         print(roi, ' was add to tracker.')
         #duplicate for display
@@ -166,15 +170,13 @@ class GUIController:
         self.rois.append(copy)  
         
     def updateTracker(self):
-        result = tracker.track(self.video.currentFrame)
-        if result == None:
+        result = self.tracker.track(self.video.currentFrame)
+        if result is None:
             self.isPlaying = False
         
-        print('y')
-        
-        for i in len(result):
-            self.rois[i].setGeometry(QRect(result[i]))           
-        print('Z')
+        for i in range(len(result)):
+            rect = QRect(result[i][0], result[i][1], result[i][2], result[i][3])
+            self.rois[i].setGeometry(rect)
         
     def cleanup(self):
         self.app.exec_()
