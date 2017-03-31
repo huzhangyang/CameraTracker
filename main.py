@@ -22,17 +22,3 @@ tracker = CameraTracker('MIL')
 gui.initUI(video, tracker)
 
 gui.cleanup()
-'''
-tracker.selectROI(video.currentFrame)
-playing = 1
-while(video.advance()):
-    p1, p2 = tracker.track(video.currentFrame)
-    if p1 is not None and p2 is not None:
-        cv2.rectangle(video.currentFrame, p1, p2, (0, 0, 255), 2, 1)
-        
-cv2.setTrackbarPos('Frame', WINDOW_NAME, video.getPosition())
-cv2.imshow(WINDOW_NAME, video.currentFrame)
-cv2.waitKey(1)
-tracker.output()
-#video.close()
-'''

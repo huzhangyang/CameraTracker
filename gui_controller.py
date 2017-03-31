@@ -156,7 +156,8 @@ class GUIController:
         self.window.image.setPixmap(QPixmap.fromImage(image))
         
     def addROI(self, geometry):
-        self.tracker.addROI(self.video.currentFrame, geometry.getCoords())
+        roi = geometry.getCoords()
+        self.tracker.addROI(self.video.currentFrame, roi)
         print(roi, ' was add to tracker.')
         #duplicate for display
         copy = QRubberBand(QRubberBand.Rectangle, self.window.image)
@@ -165,7 +166,7 @@ class GUIController:
         self.rois.append(copy)  
         
     def updateTracker(self):
-        result = tracker.track(self.controller.video.currentFrame)
+        result = tracker.track(self.video.currentFrame)
         if result == None:
             self.isPlaying = False
         
