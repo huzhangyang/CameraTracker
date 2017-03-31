@@ -15,6 +15,7 @@ class CameraTracker:
         
     def reset(self):
         self.__tracker = cv2.MultiTracker(self.algorithm)
+        self.trackResult = []
         
     def track(self, frame):
         result = self.__tracker.update(frame)
@@ -39,4 +40,9 @@ class CameraTracker:
                 file.write('\n')
                 
     def solve(self, focalLength, centerX, centerY):
+        if len(self.trackResult) < 50:
+            print('Error: Not Enough Tracking Data.')
+            return
+        
+        # TODO
         print('Solve! ', focalLength, ',', centerX, ',', centerY)

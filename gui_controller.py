@@ -107,8 +107,8 @@ class MyWindow(QWidget):
         self.controller.addROI(self.image.rubberBand.geometry())
 
     def onTrackButton(self):
-        if len(self.controller.rois) == 0:
-            print('Nothing to track.')
+        if len(self.controller.rois) < 5:
+            print('Error: Not enough points to track.')
             return
         
         self.trackButton.setText('Pause')
@@ -191,7 +191,6 @@ class GUIController:
     def addROI(self, geometry):
         roi = geometry.getRect()
         self.tracker.addROI(self.video.currentFrame, roi)
-        print(roi, ' was add to tracker.')
         #duplicate for display
         copy = QRubberBand(QRubberBand.Rectangle, self.window.image)
         copy.setGeometry(geometry)
