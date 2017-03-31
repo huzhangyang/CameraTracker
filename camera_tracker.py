@@ -37,3 +37,6 @@ class CameraTracker:
                     py = int(singleResult[1] + singleResult[3] / 2)
                     file.writelines([str(px), ',', str(py), ' '])
                 file.write('\n')
+                
+    def solve(self, focalLength, centerX, centerY):
+        print('Solve! ', focalLength, ',', centerX, ',', centerY)

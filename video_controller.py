@@ -21,6 +21,11 @@ class VideoController:
     def isOpened(self):
         return self.__cap.isOpened()
     
+    def getSize(self):
+        width = int(self.__cap.get(cv2.CAP_PROP_FRAME_WIDTH)) 
+        height = int(self.__cap.get(cv2.CAP_PROP_FRAME_HEIGHT)) 
+        return (width, height)
+    
     def getPosition(self):
         return int(self.__cap.get(cv2.CAP_PROP_POS_FRAMES))
     

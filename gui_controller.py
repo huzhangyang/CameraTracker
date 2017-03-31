@@ -2,7 +2,7 @@
 #Zhangyang Hu 24/03/2017
 
 from PyQt5.QtWidgets import *
-from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtGui import QImage, QPixmap, QDoubleValidator
 from PyQt5.QtCore import QPoint, QRect, QSize, Qt
 import cv2
 import sys
@@ -40,8 +40,16 @@ class MyWindow(QWidget):
         self.addButton = QPushButton('AddToTracker')
         self.clearButton = QPushButton('ClearTracker')
         self.trackButton = QPushButton('Track')
-        self.frameBar = QScrollBar(Qt.Horizontal)
+        self.solveButton = QPushButton('Solve')
+
+        self.focalLengthText = QLabel('Focal Length')
+        self.focalLengthEdit = QLineEdit('0')
+        self.centerXText = QLabel('Optical Center X')
+        self.centerXEdit = QLineEdit('960')
+        self.centerYText = QLabel('Optical Center Y')
+        self.centerYEdit = QLineEdit('540')
         self.frameText = QLabel('Frame:0')
+        self.frameBar = QScrollBar(Qt.Horizontal)
         self.image = MyImage()
         
         buttons = QHBoxLayout()
@@ -49,10 +57,18 @@ class MyWindow(QWidget):
         buttons.addWidget(self.addButton)
         buttons.addWidget(self.clearButton)
         buttons.addWidget(self.trackButton)
+        buttons.addWidget(self.solveButton)
         
         frames = QHBoxLayout()
+        frames.addWidget(self.focalLengthText)
+        frames.addWidget(self.focalLengthEdit)
+        frames.addWidget(self.centerXText)
+        frames.addWidget(self.centerXEdit)
+        frames.addWidget(self.centerYText)
+        frames.addWidget(self.centerYEdit)
         frames.addWidget(self.frameText)
         frames.addWidget(self.frameBar)
+        frames.addStretch(10)
         
         vbox = QVBoxLayout()
         vbox.addLayout(frames)
@@ -69,7 +85,13 @@ class MyWindow(QWidget):
         self.addButton.clicked.connect(self.onAddButton)
         self.clearButton.clicked.connect(self.onClearButton)
         self.trackButton.clicked.connect(self.onTrackButton)
+        self.solveButton.clicked.connect(self.onSolveButton)
         self.frameBar.valueChanged.connect(self.onFrameBar)
+        
+        validator = QDoubleValidator()
+        self.focalLengthEdit.setValidator(validator)
+        self.centerXEdit.setValidator(validator)
+        self.centerYEdit.setValidator(validator)
 
     def onPlayButton(self):
         if not self.controller.isPlaying:
@@ -105,6 +127,12 @@ class MyWindow(QWidget):
             self.controller.tracker.output()
         else:
             self.controller.isPlaying = False
+            
+    def onSolveButton(self):
+        fl = float(self.focalLengthEdit.text())
+        cx = float(self.centerXEdit.text())
+        cy = float(self.centerYEdit.text())
+        self.controller.tracker.solve(fl, cx, cy)
         
     def onClearButton(self):
         self.controller.tracker.reset()
@@ -152,6 +180,7 @@ class GUIController:
         self.video = video
         self.tracker = tracker
         self.window.frameBar.setRange(0, video.totalFrame)
+        self.window.frameBar.setFixedWidth(video.getSize()[0] / 2)
         self.showCurrentFrame()
         
     def showCurrentFrame(self):
