@@ -3,6 +3,16 @@
 
 import cv2
 import numpy
+from scipy import optimize
+
+#marker: n-th frame, m-th track, pointX, pointY   
+class marker:
+    def __init__(self, frame, track, x, y):
+        self.frame = frame
+        self.track = track
+        self.x = x
+        self.y = y
+        
 
 class CameraTracker:
     def __init__(self, algorithm):
@@ -39,7 +49,7 @@ class CameraTracker:
                     file.writelines([str(px), ',', str(py), ' '])
                 file.write('\n')
                 
-    def solve(self, focalLength, centerX, centerY, filename):
+    def solve(self, focalLength, centerX, centerY, imageSize, filename):
         with open(filename) as file:
             content = file.readlines()
             if len(content) < 50:
@@ -47,21 +57,44 @@ class CameraTracker:
                 return
             
             numOfTracks = len(content[0].split(' ')) - 1 # strip \n
-            points2D = numpy.zeros([numOfTracks, len(content), 2])
+            markers = []
             for i in range(len(content)):
                 tracks = content[i].split(' ')
                 for j in range(numOfTracks):
                     split = tracks[j].split(',')
-                    if len(split) != 2:
-                        continue 
+                    if len(split) == 2:
+                        markers.append(marker(i, j, int(split[0]), int(split[1])))
 
-                    points2D[j, i, 0] = int(split[0])
-                    points2D[j, i, 1] = int(split[1])
-                
         K = numpy.mat([[focalLength, 0, centerX], [0, focalLength, centerY], [0, 0, 1]])
 
-        Rs, Ts, points3D = self.reconstruct(K, points2D)
+        Rs, Ts, points3D = self.reconstruct(K, imageSize, markers)
+    
+     
+    def reconstruct(self, K, imageSize, markers):
         
-    def reconstruct(self, K, points2D):
+        def normalizeMarkersCostFunction(parameters):
+            x = parameters[0]
+            y = parameters[1]
+            
+            r2 = x*x + y*y
+            r4 = r2*r2
+            r6 = r4*r2
+            r_coeff = 1 + k1*r2 + k2*r4 + k3*r6
+            xx = K[0, 0]*x*r_coeff + K[0, 2]
+            yy = K[1, 1]*y*r_coeff + K[1, 2]
+            
+            return xx - m.x, yy - m.y
+        
+        k1, k2, k3 = 0, 0, 0 # polynomial radial distortion
+        #Normalize markers
+        normalizedMarkers = []
+        for m in markers:
+            initParams = numpy.zeros(2)
+            initParams[0] = (m.x - K[0, 2]) / K[0, 0]
+            initParams[1] = (m.y - K[1, 2]) / K[1, 1]
+            result = optimize.root(normalizeMarkersCostFunction, initParams, method='lm')
+            #print(initParams[0], initParams[1], m.x, m.y, result.x[0], result.x[1])
+            normalizedMarkers.append(marker(m.frame, m.track, result.x[0], result.x[1]))
         #TODO
         return None, None, None
+    

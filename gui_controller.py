@@ -131,7 +131,7 @@ class MyWindow(QWidget):
         cx = float(self.centerXEdit.text())
         cy = float(self.centerYEdit.text())
         filename = self.controller.readFile('Select a track file:')
-        self.controller.tracker.solve(fl, cx, cy, filename)
+        self.controller.tracker.solve(fl, cx, cy, self.controller.video.getSize(), filename)
         
     def onClearButton(self):
         self.controller.tracker.reset()
