@@ -95,6 +95,93 @@ class CameraTracker:
             result = optimize.root(normalizeMarkersCostFunction, initParams, method='lm')
             #print(initParams[0], initParams[1], m.x, m.y, result.x[0], result.x[1])
             normalizedMarkers.append(marker(m.frame, m.track, result.x[0], result.x[1]))
+        #select two keyframes
+        keyframes = self.selectKeyFrames(normalizedMarkers, K)
         #TODO
         return None, None, None
+    
+    def selectKeyFrames(self, markers, K):
+        
+        def getMaxFrame(markers):
+            maxFrame = 0
+            for m in markers:
+                maxFrame = max(m.frame, maxFrame)
+            return maxFrame
+        
+        def markersInBothFramess(markers, frame1, frame2):
+            ret = []
+            for m in markers:
+                if m.frame == frame1 or m.frame == frame2:
+                    ret.append(m)
+            return ret
+        
+        def markersForTracksInBothFrames(markers, frame1, frame2):
+            tracks1 = []
+            tracks2 = []
+            for m in markers:
+                if m.frame == frame1:
+                    tracks1.append(m.track)
+                elif m.frame == frame2:
+                    tracks2.append(m.track)
+            
+            intersection = [val for val in tracks1 if val in tracks2]
+            ret = []
+            for m in markers:
+                if m.frame == frame1 or m.frame == frame2:
+                    if m.track in intersection:
+                        ret.append(m)
+                        
+            return ret
+        
+        def intrinsicsNormalizationMatrix(K):
+            T = numpy.identity(3)
+            S = numpy.identity(3)
+            T[0, 2] = -K[0, 2]
+            T[1, 2] = -K[1, 2]
+            S[0, 0] /= K[0, 0]
+            S[1, 1] /= K[1, 1]
+            return S * T
+        
+        def coordinatesForMarkersInFrame(markers, frame):
+            coords = []
+            for m in markers:
+                if m.frame == frame:
+                    coords.append([m.x, m.y])
+                    
+            coordinates = numpy.zeros([2, len(coords)])
+            for i in range(len(coords)):
+                coordinates[0, i] = coords[i][0]
+                coordinates[1, i] = coords[i][1]
+            return coordinates
+
+        keyFrames = []
+        maxFrame = getMaxFrame(markers)
+        nextKeyframe = 1
+        numKeyframe = 0
+        N = intrinsicsNormalizationMatrix(K)
+        
+        Sc_best = numpy.finfo(numpy.float).max
+        success_intersects_factor_best = 0
+        
+        while nextKeyframe != -1:#found keyframe
+            currentKeyframe = nextKeyframe
+            Sc_best_candidate = numpy.finfo(numpy.float).max
+            numKeyframe += 1
+            nextKeyframe = -1
+            
+            for candidate in range(currentKeyframe + 1, maxFrame + 1):
+                allMarkers = markersInBothFramess(markers, currentKeyframe, candidate)
+                trackedMarkers = markersForTracksInBothFrames(markers, currentKeyframe, candidate)
+                # Correspondences in normalized space
+                x1 = coordinatesForMarkersInFrame(trackedMarkers, currentKeyframe)
+                x2 = coordinatesForMarkersInFrame(trackedMarkers, candidate)
+                
+                print(x1.shape, x2.shape)
+                
+                if x1.shape[1] < 8 or x2.shape[1] < 8:
+                    continue
+                
+                # STEP 1: Correspondence ratio constraint
+                
+        return keyFrames
     
