@@ -13,6 +13,36 @@ class marker:
         self.x = x
         self.y = y
         
+    def getMaxFrame(markers):
+        maxFrame = 0
+        for m in markers:
+            maxFrame = max(m.frame, maxFrame)
+        return maxFrame
+    
+    def markersInBothFramess(markers, frame1, frame2):
+        ret = []
+        for m in markers:
+            if m.frame == frame1 or m.frame == frame2:
+                ret.append(m)
+        return ret
+    
+    def markersForTracksInBothFrames(markers, frame1, frame2):
+        tracks1 = []
+        tracks2 = []
+        for m in markers:
+            if m.frame == frame1:
+                tracks1.append(m.track)
+            elif m.frame == frame2:
+                tracks2.append(m.track)
+        
+        intersection = [val for val in tracks1 if val in tracks2]
+        ret = []
+        for m in markers:
+            if m.frame == frame1 or m.frame == frame2:
+                if m.track in intersection:
+                    ret.append(m)
+                    
+        return ret
 
 class CameraTracker:
     def __init__(self, algorithm):
@@ -96,43 +126,28 @@ class CameraTracker:
             #print(initParams[0], initParams[1], m.x, m.y, result.x[0], result.x[1])
             normalizedMarkers.append(marker(m.frame, m.track, result.x[0], result.x[1]))
         #select two keyframes
-        keyframes = self.selectKeyFrames(normalizedMarkers, K)
-        #TODO
+        #keyframes = self.selectKeyFrames(normalizedMarkers, K)
+        kf1, kf2 = 0, marker.getMaxFrame(markers)
+        #Actual reconstruction
+        keyframeMarkers = marker.markersForTracksInBothFrames(markers, kf1, kf2)
+        if len(keyframeMarkers) < 8:
+            print('Error: Not Enough Keyframe Markers.')
+            return None, None, None
+        
+        #TODO: EuclideanReconstructTwoFrames(keyframeMarkers)
+        #TODO: EuclideanBundle(normalized_tracks)
+        #TODO: EuclideanCompleteReconstruction(normalized_tracks)
+        
+        #refinement
+        #TODO: libmv_solveRefineIntrinsics
+        #TODO: EuclideanScaleToUnity
+        #TODO: finishReconstruction
+        #TODO: extractLibmvReconstructionData
+        
         return None, None, None
     
     def selectKeyFrames(self, markers, K):
-        
-        def getMaxFrame(markers):
-            maxFrame = 0
-            for m in markers:
-                maxFrame = max(m.frame, maxFrame)
-            return maxFrame
-        
-        def markersInBothFramess(markers, frame1, frame2):
-            ret = []
-            for m in markers:
-                if m.frame == frame1 or m.frame == frame2:
-                    ret.append(m)
-            return ret
-        
-        def markersForTracksInBothFrames(markers, frame1, frame2):
-            tracks1 = []
-            tracks2 = []
-            for m in markers:
-                if m.frame == frame1:
-                    tracks1.append(m.track)
-                elif m.frame == frame2:
-                    tracks2.append(m.track)
-            
-            intersection = [val for val in tracks1 if val in tracks2]
-            ret = []
-            for m in markers:
-                if m.frame == frame1 or m.frame == frame2:
-                    if m.track in intersection:
-                        ret.append(m)
-                        
-            return ret
-        
+
         def intrinsicsNormalizationMatrix(K):
             T = numpy.identity(3)
             S = numpy.identity(3)
@@ -153,6 +168,14 @@ class CameraTracker:
                 coordinates[0, i] = coords[i][0]
                 coordinates[1, i] = coords[i][1]
             return coordinates
+        
+        def estimateHomography2DFromCorrespondences(x1, x2):
+            # TODO: IMPLEMENTION
+            pass
+        
+        def estimateFundamentalFromCorrespondences(x1, x2):
+            # TODO: IMPLEMENTION
+            pass
 
         keyFrames = []
         maxFrame = getMaxFrame(markers)
@@ -168,6 +191,7 @@ class CameraTracker:
             Sc_best_candidate = numpy.finfo(numpy.float).max
             numKeyframe += 1
             nextKeyframe = -1
+            print('Processing Frame:', currentKeyframe)
             
             for candidate in range(currentKeyframe + 1, maxFrame + 1):
                 allMarkers = markersInBothFramess(markers, currentKeyframe, candidate)
@@ -182,6 +206,16 @@ class CameraTracker:
                     continue
                 
                 # STEP 1: Correspondence ratio constraint
+                rc = len(allMarkers) / len(trackedMarkers)
+                if rc < 0.8 or rc > 1.0:
+                    continue# Limit correspondence ratio
+                
+                H = estimateHomography2DFromCorrespondences(x1, x2)
+                H = N.I * H * N;
+                F = estimateFundamentalFromCorrespondences(x1, x2)
+                F = N.I * F * N;
+                # STEP2:
+                # TODO: IMPLEMENTION
                 
         return keyFrames
     
