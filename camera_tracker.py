@@ -267,7 +267,7 @@ class CameraTracker:
         def enforceFundamentalRank2Constraint(F):
             U, S, V = numpy.linalg.svd(F)
             S[2] = 0
-            F = U * numpy.diag(S) * V.T
+            F = U * numpy.diag(S) * V
             return F
             
         def normalizedEightPointSolver(x1, x2):
@@ -282,9 +282,17 @@ class CameraTracker:
             #denormalize the fundamental matrix
             F = T2.T * F * T1
             return F
+        
+        def fundamentalToEssential(F):
+            U, S, V = numpy.linalg.svd(F)
+            s = (S[0] + S[1]) / 2
+            E = U * numpy.diag(numpy.array([s, s, 0])) * V
+            return E
 
         f1, f2 = Marker.getTwoFrameInMarkers(markers)
         x1 = Marker.coordinatesForMarkersInFrame(markers, f1)
         x2 = Marker.coordinatesForMarkersInFrame(markers, f2)
         F = normalizedEightPointSolver(x1, x2)
         print(F)
+        E = fundamentalToEssential(F)
+        print(E)
