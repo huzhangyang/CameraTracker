@@ -6,7 +6,7 @@ import numpy
 from scipy import optimize
 
 #marker: n-th frame, m-th track, pointX, pointY   
-class marker:
+class Marker:
     def __init__(self, frame, track, x, y):
         self.frame = frame
         self.track = track
@@ -18,6 +18,15 @@ class marker:
         for m in markers:
             maxFrame = max(m.frame, maxFrame)
         return maxFrame
+    
+    def getTwoFrameInMarkers(markers):
+        f1, f2 = -1, -1
+        f1 = markers[0].frame
+        for m in markers:
+            if m.frame != f1:
+                f2 = m.frame
+                break
+        return f1, f2           
     
     def markersInBothFramess(markers, frame1, frame2):
         ret = []
@@ -43,6 +52,18 @@ class marker:
                     ret.append(m)
                     
         return ret
+    
+    def coordinatesForMarkersInFrame(markers, frame):
+        coords = []
+        for m in markers:
+            if m.frame == frame:
+                coords.append([m.x, m.y])
+                
+        coordinates = numpy.zeros([2, len(coords)])
+        for i in range(len(coords)):
+            coordinates[0, i] = coords[i][0]
+            coordinates[1, i] = coords[i][1]
+        return coordinates
 
 class CameraTracker:
     def __init__(self, algorithm):
@@ -93,7 +114,7 @@ class CameraTracker:
                 for j in range(numOfTracks):
                     split = tracks[j].split(',')
                     if len(split) == 2:
-                        markers.append(marker(i, j, int(split[0]), int(split[1])))
+                        markers.append(Marker(i, j, int(split[0]), int(split[1])))
 
         K = numpy.mat([[focalLength, 0, centerX], [0, focalLength, centerY], [0, 0, 1]])
 
@@ -124,17 +145,17 @@ class CameraTracker:
             initParams[1] = (m.y - K[1, 2]) / K[1, 1]
             result = optimize.root(normalizeMarkersCostFunction, initParams, method='lm')
             #print(initParams[0], initParams[1], m.x, m.y, result.x[0], result.x[1])
-            normalizedMarkers.append(marker(m.frame, m.track, result.x[0], result.x[1]))
+            normalizedMarkers.append(Marker(m.frame, m.track, result.x[0], result.x[1]))
         #select two keyframes
         #keyframes = self.selectKeyFrames(normalizedMarkers, K)
-        kf1, kf2 = 0, marker.getMaxFrame(markers)
+        kf1, kf2 = 0, Marker.getMaxFrame(markers)
         #Actual reconstruction
-        keyframeMarkers = marker.markersForTracksInBothFrames(markers, kf1, kf2)
+        keyframeMarkers = Marker.markersForTracksInBothFrames(markers, kf1, kf2)
         if len(keyframeMarkers) < 8:
             print('Error: Not Enough Keyframe Markers.')
             return None, None, None
         
-        #TODO: EuclideanReconstructTwoFrames(keyframeMarkers)
+        self.reconstructTwoFrames(keyframeMarkers)
         #TODO: EuclideanBundle(normalized_tracks)
         #TODO: EuclideanCompleteReconstruction(normalized_tracks)
         
@@ -156,19 +177,7 @@ class CameraTracker:
             S[0, 0] /= K[0, 0]
             S[1, 1] /= K[1, 1]
             return S * T
-        
-        def coordinatesForMarkersInFrame(markers, frame):
-            coords = []
-            for m in markers:
-                if m.frame == frame:
-                    coords.append([m.x, m.y])
-                    
-            coordinates = numpy.zeros([2, len(coords)])
-            for i in range(len(coords)):
-                coordinates[0, i] = coords[i][0]
-                coordinates[1, i] = coords[i][1]
-            return coordinates
-        
+
         def estimateHomography2DFromCorrespondences(x1, x2):
             # TODO: IMPLEMENTION
             pass
@@ -178,7 +187,7 @@ class CameraTracker:
             pass
 
         keyFrames = []
-        maxFrame = getMaxFrame(markers)
+        maxFrame = Marker.getMaxFrame(markers)
         nextKeyframe = 1
         numKeyframe = 0
         N = intrinsicsNormalizationMatrix(K)
@@ -194,14 +203,12 @@ class CameraTracker:
             print('Processing Frame:', currentKeyframe)
             
             for candidate in range(currentKeyframe + 1, maxFrame + 1):
-                allMarkers = markersInBothFramess(markers, currentKeyframe, candidate)
-                trackedMarkers = markersForTracksInBothFrames(markers, currentKeyframe, candidate)
+                allMarkers = Marker.markersInBothFramess(markers, currentKeyframe, candidate)
+                trackedMarkers = Marker.markersForTracksInBothFrames(markers, currentKeyframe, candidate)
                 # Correspondences in normalized space
-                x1 = coordinatesForMarkersInFrame(trackedMarkers, currentKeyframe)
-                x2 = coordinatesForMarkersInFrame(trackedMarkers, candidate)
-                
-                print(x1.shape, x2.shape)
-                
+                x1 = Marker.coordinatesForMarkersInFrame(trackedMarkers, currentKeyframe)
+                x2 = Marker.coordinatesForMarkersInFrame(trackedMarkers, candidate)
+
                 if x1.shape[1] < 8 or x2.shape[1] < 8:
                     continue
                 
@@ -219,3 +226,65 @@ class CameraTracker:
                 
         return keyFrames
     
+    def reconstructTwoFrames(self, markers):
+        def preconditionerFromPoints(points):
+            mean = numpy.mean(points, axis = 0)
+            variance = numpy.var(points, axis = 0)
+            xfactor = numpy.sqrt(2 / variance[0])
+            yfactor = numpy.sqrt(2 / variance[1])
+            #handle small value
+            if variance[0] < 1e-8:
+                xfactor = mean[0] = 1
+            if variance[1] < 1e-8:
+                yfactor = mean[1] = 1
+                
+            T = numpy.mat([[xfactor, 0, -xfactor * mean[0]], [0, yfactor, -yfactor * mean[1]],[0, 0, 1]])
+            return T
+        
+        def applyTransformationToPoints(points, T):
+            P = numpy.concatenate((points, numpy.ones([1, points.shape[1]])))
+            P = T * P
+            transformedPoints = P[:2] / P[2]
+            return transformedPoints
+        
+        def eightPointSolver(x1, x2):
+            A = numpy.zeros([x1.shape[1], 9])
+            for i in range(x1.shape[1]):
+                A[i, 0] = x2[0, i] * x1[0, i]
+                A[i, 1] = x2[0, i] * x1[1, i]
+                A[i, 2] = x2[0, i]
+                A[i, 3] = x2[1, i] * x1[0, i]
+                A[i, 4] = x2[1, i] * x1[1, i]
+                A[i, 5] = x2[1, i]
+                A[i, 6] = x1[0, i]
+                A[i, 7] = x1[1, i]
+                A[i, 8] = 1
+                
+            U, S, V = numpy.linalg.svd(A)
+            F = V[-1].reshape(3, 3)
+            return F
+        
+        def enforceFundamentalRank2Constraint(F):
+            U, S, V = numpy.linalg.svd(F)
+            S[2] = 0
+            F = U * numpy.diag(S) * V.T
+            return F
+            
+        def normalizedEightPointSolver(x1, x2):
+            #Normalize
+            T1 = preconditionerFromPoints(x1)
+            T2 = preconditionerFromPoints(x2)
+            x1_normalized = applyTransformationToPoints(x1, T1)
+            x2_normalized = applyTransformationToPoints(x2, T2)
+            #estimate fundamental matrix
+            F = eightPointSolver(x1_normalized, x2_normalized)
+            F = enforceFundamentalRank2Constraint(F)
+            #denormalize the fundamental matrix
+            F = T2.T * F * T1
+            return F
+
+        f1, f2 = Marker.getTwoFrameInMarkers(markers)
+        x1 = Marker.coordinatesForMarkersInFrame(markers, f1)
+        x2 = Marker.coordinatesForMarkersInFrame(markers, f2)
+        F = normalizedEightPointSolver(x1, x2)
+        print(F)
