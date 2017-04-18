@@ -244,7 +244,7 @@ class CameraTracker:
         def applyTransformationToPoints(points, T):
             P = numpy.concatenate((points, numpy.ones([1, points.shape[1]])))
             P = T * P
-            transformedPoints = P[:2] / P[2]
+            transformedPoints = P[:2] / P[2]#HomogeneousToEuclidean
             return transformedPoints
         
         def eightPointSolver(x1, x2):
@@ -261,7 +261,7 @@ class CameraTracker:
                 A[i, 8] = 1
                 
             U, S, V = numpy.linalg.svd(A)
-            F = V[-1].reshape(3, 3)
+            F = V[:,-1].reshape(3, 3)
             return F
         
         def enforceFundamentalRank2Constraint(F):
@@ -288,6 +288,48 @@ class CameraTracker:
             s = (S[0] + S[1]) / 2
             E = U * numpy.diag(numpy.array([s, s, 0])) * V
             return E
+        
+        def triangulateDLT(P1, x1, P2, x2):
+            design = numpy.zeros([4, 4])
+            for i in range(4):
+                design[0, i] = x1[0] * P1[2, i] - P1[0, i]
+                design[1, i] = x1[1] * P1[2, i] - P1[1, i]
+                design[2, i] = x2[0] * P2[2, i] - P2[0, i]
+                design[3, i] = x2[1] * P2[2, i] - P2[1, i]
+                
+            U, S, V = numpy.linalg.svd(design)
+            X = V[:,-1]
+            X = X[:3] / X[3]#HomogeneousToEuclidean
+            return numpy.mat(X).T
+        
+        def motionFromEssentialAndCorrespondence(E, x1, x2):
+            U, S, V = numpy.linalg.svd(E)
+            
+            if numpy.linalg.det(U) < 0:
+                U[:,-1] *= -1
+                
+            if numpy.linalg.det(V) < 0:
+                V[-1] *= -1
+                
+            W = numpy.mat([[0, -1, 0], [1, 0, 0], [0, 0, 1]])
+            UWV = U * W * V
+            UWTV = U * W.T * V
+            
+            Rs = [UWV, UWV, UWTV, UWTV]
+            Ts = [U[:, -1], -U[:, -1], U[:, -1], -U[:, -1]]
+            R1 = numpy.eye(3, 3)
+            T1 = numpy.zeros(3)
+            P1 = numpy.eye(3, 4)
+            for i in range(4):
+                P2 = numpy.concatenate((Rs[i], Ts[i]), axis = 1)
+                X = triangulateDLT(P1, x1, P2, x2)
+                d1 = (R1 * X)[2] + T1[2]
+                d2 = (Rs[i] * X)[2] + Ts[i][2]
+                if d1 > 0 and d2 > 0:
+                    return Rs[i], Ts[i]
+            
+            print("Error: Motion From Essential Failed.")
+            return None, None
 
         f1, f2 = Marker.getTwoFrameInMarkers(markers)
         x1 = Marker.coordinatesForMarkersInFrame(markers, f1)
@@ -296,3 +338,7 @@ class CameraTracker:
         print(F)
         E = fundamentalToEssential(F)
         print(E)
+        R, T = motionFromEssentialAndCorrespondence(E, x1[:, 0], x2[:, 0])
+        print(R, T)
+        #reconstruction->InsertCamera(image1, Mat3::Identity(), Vec3::Zero());
+        #reconstruction->InsertCamera(image2, R, t);
