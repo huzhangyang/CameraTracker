@@ -120,3 +120,30 @@ class Reconstruction:
         if camera.frame != -1:
             return camera
         return None
+    
+    def getCameras(self):
+        cameras = []
+        for camera in self.cameras:
+            if camera.frame != -1:
+                cameras.append(camera)
+        return cameras
+    
+    def getPoints(self):
+        points = []
+        for point in self.points:
+            if point.track != -1:
+                points.append(point)
+        return points
+    
+    def extract(self):
+        Rs, Ts, points3D = [], [], []
+        allCameras = self.getCameras()
+        for camera in allCameras:
+            Rs.append(camera.R)
+            Ts.append(camera.T)
+            
+        allPoints = self.getPoints()
+        for point in allPoints:
+            points3D.append(point.pos)            
+        
+        return Rs, Ts, points3D

@@ -60,6 +60,7 @@ class CameraTracker:
         K = numpy.mat([[focalLength, 0, centerX], [0, focalLength, centerY], [0, 0, 1]])
 
         Rs, Ts, points3D = self.reconstruct(K, imageSize, markers)
+        #print(Rs, Ts, points3D)
     
 ############################## Key Algorithms #################################
      
@@ -104,13 +105,10 @@ class CameraTracker:
         self.reconstructTwoFrames(keyframeMarkers, reconstruction)
         #TODO: EuclideanBundle(normalized_tracks)
         self.completeReconstruction(normalizedMarkers, reconstruction)        
-        #refinement
-        #TODO: libmv_solveRefineIntrinsics
-        #TODO: EuclideanScaleToUnity
-        #TODO: finishReconstruction
-        #TODO: extractLibmvReconstructionData
-        
-        return None, None, None
+        #TODO: EuclideanBundleCommonIntrinsics
+        self.scaleToUnity(reconstruction)
+        #TODO: EuclideanReprojectionError        
+        return reconstruction.extract() # K is refined but not returned here
     
     def selectKeyFrames(self, markers, K):
 
@@ -280,22 +278,22 @@ class CameraTracker:
         x1 = Marker.coordinatesForMarkersInFrame(markers, f1)
         x2 = Marker.coordinatesForMarkersInFrame(markers, f2)
         F = normalizedEightPointSolver(x1, x2)
-        print(F)
+        #print(F)
         E = fundamentalToEssential(F)
-        print(E)
+        #print(E)
         R, T = motionFromEssentialAndCorrespondence(E, x1[:, 0], x2[:, 0])
-        print(R, T)
+        #print(R, T)
         reconstruction.setCamera(f1, numpy.identity(3), numpy.zeros(3))
-        reconstruction.setCamera(f2, R, T)
+        reconstruction.setCamera(f2, R, numpy.asarray(T).ravel())
     
     def completeReconstruction(self, markers, reconstruction):
         def intersect(reconstructedMarkers, reconstruction):
-            # TODO:
-            return True
+            # TODO: IMPLEMENTION
+            return False
         
         def resect(reconstructedMarkers, reconstruction, finalPass):
-            # TODO:
-            return True
+            # TODO: IMPLEMENTION
+            return False
         
         maxFrame = Marker.getMaxFrame(markers)
         maxTrack = Marker.getMaxTrack(markers)
@@ -358,7 +356,32 @@ class CameraTracker:
                         
             #if numResects > 0:
                 #bundle(markers, reconstruction)
-                    
                 
+    def scaleToUnity(self, reconstruction):
+        allCameras = reconstruction.getCameras()
+        allPoints = reconstruction.getPoints()
+        # Calculate center of the mass of all cameras
+        massCenter = numpy.zeros(3)
+        for camera in allCameras:
+            massCenter += camera.T
+        massCenter /= len(allCameras)
+        # Find the most distant camera from the mass center
+        maxDistance = 0
+        for camera in allCameras:
+            dis = numpy.linalg.norm(camera.T - massCenter)
+            maxDistance = max(maxDistance, dis)
+        
+        if maxDistance < 1e-8:# too close
+            return
+        
+        scale = 1 / numpy.sqrt(maxDistance)
+        
+        # Rescale cameras positions
+        for camera in allCameras:
+            camera.T *= scale
+            
+        # Rescale points positions
+        for point in allPoints:       
+            point.pos *= scale    
                         
                 
