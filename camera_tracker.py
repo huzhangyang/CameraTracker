@@ -4,67 +4,8 @@
 import cv2
 import numpy
 from scipy import optimize
-
-#marker: n-th frame, m-th track, pointX, pointY   
-class Marker:
-    def __init__(self, frame, track, x, y):
-        self.frame = frame
-        self.track = track
-        self.x = x
-        self.y = y
-        
-    def getMaxFrame(markers):
-        maxFrame = 0
-        for m in markers:
-            maxFrame = max(m.frame, maxFrame)
-        return maxFrame
-    
-    def getTwoFrameInMarkers(markers):
-        f1, f2 = -1, -1
-        f1 = markers[0].frame
-        for m in markers:
-            if m.frame != f1:
-                f2 = m.frame
-                break
-        return f1, f2           
-    
-    def markersInBothFramess(markers, frame1, frame2):
-        ret = []
-        for m in markers:
-            if m.frame == frame1 or m.frame == frame2:
-                ret.append(m)
-        return ret
-    
-    def markersForTracksInBothFrames(markers, frame1, frame2):
-        tracks1 = []
-        tracks2 = []
-        for m in markers:
-            if m.frame == frame1:
-                tracks1.append(m.track)
-            elif m.frame == frame2:
-                tracks2.append(m.track)
-        
-        intersection = [val for val in tracks1 if val in tracks2]
-        ret = []
-        for m in markers:
-            if m.frame == frame1 or m.frame == frame2:
-                if m.track in intersection:
-                    ret.append(m)
-                    
-        return ret
-    
-    def coordinatesForMarkersInFrame(markers, frame):
-        coords = []
-        for m in markers:
-            if m.frame == frame:
-                coords.append([m.x, m.y])
-                
-        coordinates = numpy.zeros([2, len(coords)])
-        for i in range(len(coords)):
-            coordinates[0, i] = coords[i][0]
-            coordinates[1, i] = coords[i][1]
-        return coordinates
-
+from reconstruction import Reconstruction, Marker, Camera, TrackPoint
+  
 class CameraTracker:
     def __init__(self, algorithm):
         self.algorithm = algorithm
@@ -120,6 +61,7 @@ class CameraTracker:
 
         Rs, Ts, points3D = self.reconstruct(K, imageSize, markers)
     
+############################## Key Algorithms #################################
      
     def reconstruct(self, K, imageSize, markers):
         
@@ -148,17 +90,20 @@ class CameraTracker:
             normalizedMarkers.append(Marker(m.frame, m.track, result.x[0], result.x[1]))
         #select two keyframes
         #keyframes = self.selectKeyFrames(normalizedMarkers, K)
-        kf1, kf2 = 0, Marker.getMaxFrame(markers)
+        kf1, kf2 = 0, Marker.getMaxFrame(normalizedMarkers)
         #Actual reconstruction
         keyframeMarkers = Marker.markersForTracksInBothFrames(markers, kf1, kf2)
         if len(keyframeMarkers) < 8:
             print('Error: Not Enough Keyframe Markers.')
             return None, None, None
         
-        self.reconstructTwoFrames(keyframeMarkers)
-        #TODO: EuclideanBundle(normalized_tracks)
-        #TODO: EuclideanCompleteReconstruction(normalized_tracks)
+        maxFrame = Marker.getMaxFrame(markers)
+        maxTrack = Marker.getMaxTrack(markers)
+        reconstruction = Reconstruction(maxFrame, maxTrack) 
         
+        self.reconstructTwoFrames(keyframeMarkers, reconstruction)
+        #TODO: EuclideanBundle(normalized_tracks)
+        self.completeReconstruction(normalizedMarkers, reconstruction)        
         #refinement
         #TODO: libmv_solveRefineIntrinsics
         #TODO: EuclideanScaleToUnity
@@ -226,7 +171,7 @@ class CameraTracker:
                 
         return keyFrames
     
-    def reconstructTwoFrames(self, markers):
+    def reconstructTwoFrames(self, markers, reconstruction):
         def preconditionerFromPoints(points):
             mean = numpy.mean(points, axis = 0)
             variance = numpy.var(points, axis = 0)
@@ -340,5 +285,80 @@ class CameraTracker:
         print(E)
         R, T = motionFromEssentialAndCorrespondence(E, x1[:, 0], x2[:, 0])
         print(R, T)
-        #reconstruction->InsertCamera(image1, Mat3::Identity(), Vec3::Zero());
-        #reconstruction->InsertCamera(image2, R, t);
+        reconstruction.setCamera(f1, numpy.identity(3), numpy.zeros(3))
+        reconstruction.setCamera(f2, R, T)
+    
+    def completeReconstruction(self, markers, reconstruction):
+        def intersect(reconstructedMarkers, reconstruction):
+            # TODO:
+            return True
+        
+        def resect(reconstructedMarkers, reconstruction, finalPass):
+            # TODO:
+            return True
+        
+        maxFrame = Marker.getMaxFrame(markers)
+        maxTrack = Marker.getMaxTrack(markers)
+        numResects = -1
+        numIntersects = -1
+        while numResects != 0 or numIntersects != 0:
+            #Do all possible intersections
+            numIntersects = 0
+            for track in range(maxTrack):
+                if reconstruction.pointForTrack(track) is not None:
+                    continue
+
+                allMarkers = Marker.markersForTrack(markers, track)
+                reconstructedMarkers = []
+                for i in range(len(allMarkers)):
+                    if reconstruction.cameraForFrame(allMarkers[i].frame):
+                        reconstructedMarkers.append(allMarkers[i])
+                        
+                if len(reconstructedMarkers) >= 2:
+                    if intersect(reconstructedMarkers, reconstruction):
+                        numIntersects += 1
+                        
+            #if numIntersects > 0:
+                #bundle(markers, reconstruction)
+                
+            #Do all possible resections
+            numResects = 0
+            for frame in range(maxFrame):
+                if reconstruction.cameraForFrame(frame) is not None:
+                    continue
+                
+                allMarkers = Marker.markersForFrame(markers, frame)
+                reconstructedMarkers = []
+                for i in range(len(allMarkers)):
+                    if reconstruction.pointForTrack(allMarkers[i].track):
+                        reconstructedMarkers.append(allMarkers[i])
+                        
+                if len(reconstructedMarkers) >= 5:
+                    if resect(reconstructedMarkers, reconstruction, False):
+                        numIntersects += 1
+                        
+            #if numResects > 0:
+                #bundle(markers, reconstruction)
+            
+            #One last pass
+            numResects = 0
+            for frame in range(maxFrame):
+                if reconstruction.cameraForFrame(frame) is not None:
+                    continue
+                
+                allMarkers = Marker.markersForFrame(markers, frame)
+                reconstructedMarkers = []
+                for i in range(len(allMarkers)):
+                    if reconstruction.pointForTrack(allMarkers[i].track):
+                        reconstructedMarkers.append(allMarkers[i])
+                        
+                if len(reconstructedMarkers) >= 5:
+                    if resect(reconstructedMarkers, reconstruction, True):
+                        numIntersects += 1
+                        
+            #if numResects > 0:
+                #bundle(markers, reconstruction)
+                    
+                
+                        
+                
