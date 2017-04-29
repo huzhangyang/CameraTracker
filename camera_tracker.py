@@ -287,14 +287,55 @@ class CameraTracker:
         reconstruction.setCamera(f2, R, numpy.asarray(T).ravel())
     
     def completeReconstruction(self, markers, reconstruction):
-        def intersect(reconstructedMarkers, reconstruction):
-            # TODO: IMPLEMENTION
-            return False
+        def NViewTriangulateAlgebraic(points, cameras):
+            nviews = points.shape[1]
+            design = numpy.zeros([2* nviews, 4])
+            for i in range(nviews):
+                skew = numpy.mat([[0, -1, points[i, 1]], [1, 0, -points[i, 0]]])
+                design[2*i:2*i+2, :] = skew * cameras[i]
+                
+            U, S, V = numpy.linalg.svd(design)
+            X = V[:,-1]
+            X = X[:3] / X[3]#HomogeneousToEuclidean
+            return X
         
-        def resect(reconstructedMarkers, reconstruction, finalPass):
-            # TODO: IMPLEMENTION
-            return False
+        def intersect(markers, reconstruction):
+            if len(markers) < 2:
+                return False
+            
+            cameras = []
+            for i in range(len(markers)):
+                camera = reconstruction.cameraForFrame(markers[i].frame)
+                P = numpy.concatenate((camera.R, camera.T), axis = 1)
+                cameras.append(P)
+            
+            points = numpy.zeros([2, len(markers)])
+            for i in range(len(markers)):
+                points[0, i] = markers[i].x
+                points[1, i] = markers[i].y
+            
+            Xp = NViewTriangulateAlgebraic(points, cameras)
+            # TODO: intersec.cc 103
         
+        def resect(markers, reconstruction):
+            if len(markers) < 5:
+                return False
+            
+            points2d = numpy.zeros([2, len(markers)])
+            for i in range(len(markers)):
+                points2d[i, 0] = markers[i].x
+                points2d[i, 1] = markers[i].y
+                
+            points3d = numpy.zeros([3, len(markers)])
+            for i in range(len(markers)):
+                point = reconstruction.pointForTrack(markers[i].track)
+                points3d[0, i] = point.pos[0]
+                points3d[1, i] = point.pos[1]
+                points3d[2, i] = point.pos[2]
+            
+            # TODO: euclidean_resection.cc 439
+            #result, R, T = resectionEPNP(points2d, points3d)
+
         maxFrame = Marker.getMaxFrame(markers)
         maxTrack = Marker.getMaxTrack(markers)
         numResects = -1
@@ -319,43 +360,25 @@ class CameraTracker:
             #if numIntersects > 0:
                 #bundle(markers, reconstruction)
                 
-            #Do all possible resections
-            numResects = 0
-            for frame in range(maxFrame):
-                if reconstruction.cameraForFrame(frame) is not None:
-                    continue
-                
-                allMarkers = Marker.markersForFrame(markers, frame)
-                reconstructedMarkers = []
-                for i in range(len(allMarkers)):
-                    if reconstruction.pointForTrack(allMarkers[i].track):
-                        reconstructedMarkers.append(allMarkers[i])
-                        
-                if len(reconstructedMarkers) >= 5:
-                    if resect(reconstructedMarkers, reconstruction, False):
-                        numIntersects += 1
-                        
-            #if numResects > 0:
-                #bundle(markers, reconstruction)
-            
-            #One last pass
-            numResects = 0
-            for frame in range(maxFrame):
-                if reconstruction.cameraForFrame(frame) is not None:
-                    continue
-                
-                allMarkers = Marker.markersForFrame(markers, frame)
-                reconstructedMarkers = []
-                for i in range(len(allMarkers)):
-                    if reconstruction.pointForTrack(allMarkers[i].track):
-                        reconstructedMarkers.append(allMarkers[i])
-                        
-                if len(reconstructedMarkers) >= 5:
-                    if resect(reconstructedMarkers, reconstruction, True):
-                        numIntersects += 1
-                        
-            #if numResects > 0:
-                #bundle(markers, reconstruction)
+            #Do all possible resections for two passes
+            while count in range(2):
+                numResects = 0
+                for frame in range(maxFrame):
+                    if reconstruction.cameraForFrame(frame) is not None:
+                        continue
+                    
+                    allMarkers = Marker.markersForFrame(markers, frame)
+                    reconstructedMarkers = []
+                    for i in range(len(allMarkers)):
+                        if reconstruction.pointForTrack(allMarkers[i].track):
+                            reconstructedMarkers.append(allMarkers[i])
+                            
+                    if len(reconstructedMarkers) >= 5:
+                        if resect(reconstructedMarkers, reconstruction):
+                            numIntersects += 1
+                            
+                #if numResects > 0:
+                    #bundle(markers, reconstruction)
                 
     def scaleToUnity(self, reconstruction):
         allCameras = reconstruction.getCameras()
